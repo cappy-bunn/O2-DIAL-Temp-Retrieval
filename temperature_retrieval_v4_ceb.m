@@ -8,7 +8,7 @@ clear;
 %% ========================================================================
 % Input parameters for the netcdf file retrieval
 % =========================================================================
-filename = 'wv_dial05.181030.Python.nc';
+filename = 'wv_dial05.181029.Python.nc';
 r_max = 6000;           % Maximum range [m]
 movavg_r = 300;         % Set range to average over [m] should be a multiple of 37.5 m
 movavg_t = 20;          % Set time to average over [mins] should be a multiple of 5 minutes
@@ -447,6 +447,8 @@ if mod(window_t,2) == 0
     o2off_avg = o2off_avg_transpose';
 end
 
+o2off_avg(o2off_avg <= 0) = NaN;
+
 %       ========================================================
 %       ==== Final O2 counts are 'o2on_avg' and 'o2off_avg' ====
 %       ========================================================
@@ -662,7 +664,7 @@ pkpa = 101.325.*patm;
 %  Perturbative retrieval of alpha
 % =========================================================================
 %  -----------  zeroth order
-oversample = movavg_r/37.5;             %averaged range size divided by the sample range bin size
+oversample = movavg_r/37.5;             % Averaged range size divided by the sample range bin size
 i_range = size(rm, 2);
 N_o2_on = o2on_avg(:,1:size(T,2));      % Number of time profiles may differ. Make T and N_o2 have the same.
 N_o2_off = o2off_avg(:,1:size(T,2));
@@ -671,28 +673,26 @@ N_o2_on = N_o2_on';                     % to stay consistant with DIAL_Temperatu
 N_o2_off = N_o2_off';
 
 ln_o2 = log(N_o2_on(:,1:end-oversample).*N_o2_off(:,1+oversample:end)./N_o2_on(:,1+oversample:end)./N_o2_off(:,1:end-oversample));
-%delta_on = N_o2_on(:,1+oversample:end)./N_o2_on(:,1:end-oversample);
-%delta_off = N_o2_off(:,1+oversample:end)./N_o2_off(:,1:end-oversample);
 
-junk2 = N_o2_on(:,1:end-oversample).*N_o2_off(:,1+oversample:end)./N_o2_on(:,1+oversample:end)./N_o2_off(:,1:end-oversample);
-
-%  ---  making the ln_o2 vectorplot(a the right light
+%  ---  Repeat last range until the original range is achieved 
 i_ln_o2 = size(ln_o2, 2);
-ln_o2_end = ln_o2(1, i_ln_o2);
+ln_o2_end = ln_o2(:, end);
 ln_o2_end_v = repmat(ln_o2_end, 1, i_range - i_ln_o2);
 ln_o2_total = [ln_o2  ln_o2_end_v];
 
-
+%  ---  Apply filter along range
 alpha_0_ret = 1./2./rangebin.*ln_o2_total;
-alpha_0_ret_filter = sgolayfilt(alpha_0_ret, 1, 1*oversample+1);
-alpha_0_ret_smooth = smooth(alpha_0_ret_filter, 1*oversample+1)';
-alpha_0_ret = alpha_0_ret_smooth;
-
+alpha_0_ret_filter = sgolayfilt(alpha_0_ret', 1, 1*oversample+1);   % Transpose alpha_0 so filter applies along range
+alpha_0_ret_smooth = zeros(size(alpha_0_ret_filter));
+for i = 1:size(alpha_0_ret_filter,2)
+alpha_0_ret_smooth(:,i) = smooth(alpha_0_ret_filter(:,i),1*oversample+1);
+end
+alpha_0_ret = alpha_0_ret_smooth';
 
 %  -----------  first order
 %  ---first calculate gi
 %  spectral distributionusing the guessed at temperature profile
-delfghz = -10:.06666666666666666:10;            %frequency scan in GHz
+delfghz = -10:.06666666666666666:10;            % frequency scan in GHz
 i_freq = size(delfghz, 2);
 i_freq_middle = (i_freq+1)/2;
 delfhz = delfghz.*1e9;
@@ -704,16 +704,19 @@ wn_o2_scan = 1./l_o2_scan;              %  wavenumber scan in 1/m
 wn_o2_scan_t = wn_o2_scan';
 wno2_center = 1/(l_o2_on*1e-9);         %  center wavenumber in 1/m
 
-middle = (size(wn_o2_scan, 2)+1)/2;     % gives me the index at the center of the frequency scan which is the operatiung wavelength
+middle = (size(wn_o2_scan, 2)+1)/2;     % gives me the index at the center of the frequency scan which is the operating wavelength
 
 c_doppler_o2 = mo2*c^2/(8*pi*wno2_center^2*kb);
 
+% Reshape wavenumber vector to be the third dimension
+wn_o2_scan_t = reshape(wn_o2_scan_t,[1 1 size(wn_o2_scan_t,1)]);
 
-
-%  spectral distributionusing the guessed at temperature profile
+%  spectral distribution using the guessed at temperature profile
 doppler_o2_ret_un = ((c_doppler_o2./T_g).^.5).*exp(-c_doppler_o2.*(wno2_center-wn_o2_scan_t).^2./T_g);          
-norm_o2_ret = trapz(doppler_o2_ret_un.*f_step);
+norm_o2_ret = trapz(doppler_o2_ret_un.*f_step,3);
 doppler_o2_ret = doppler_o2_ret_un./norm_o2_ret; 
+
+surf(squeeze(doppler_o2_ret(1,:,:)))
 
 %  Checking to see if doppler_o2_ret is normalized to 1 when integrated across frequency
 for i = 1:1:i_range
