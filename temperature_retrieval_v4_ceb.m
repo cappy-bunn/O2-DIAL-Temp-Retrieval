@@ -665,7 +665,8 @@ pkpa = 101.325.*patm;
 % =========================================================================
 %  -----------  zeroth order
 oversample = movavg_r/37.5;             % Averaged range size divided by the sample range bin size
-i_range = size(rm, 2);
+i_range = length(rm);
+i_time = length(tsec);
 N_o2_on = o2on_avg(:,1:size(T,2));      % Number of time profiles may differ. Make T and N_o2 have the same.
 N_o2_off = o2off_avg(:,1:size(T,2));
 
@@ -684,7 +685,8 @@ ln_o2_total = [ln_o2  ln_o2_end_v];
 alpha_0_ret = 1./2./rangebin.*ln_o2_total;
 alpha_0_ret_filter = sgolayfilt(alpha_0_ret', 1, 1*oversample+1);   % Transpose alpha_0 so filter applies along range
 alpha_0_ret_smooth = zeros(size(alpha_0_ret_filter));
-for i = 1:size(alpha_0_ret_filter,2)
+%  'Smooth' only works on vectors. Use forloop to loop over all times.
+for i = 1:i_time
 alpha_0_ret_smooth(:,i) = smooth(alpha_0_ret_filter(:,i),1*oversample+1);
 end
 alpha_0_ret = alpha_0_ret_smooth';
@@ -716,48 +718,52 @@ doppler_o2_ret_un = ((c_doppler_o2./T_g).^.5).*exp(-c_doppler_o2.*(wno2_center-w
 norm_o2_ret = trapz(doppler_o2_ret_un.*f_step,3);
 doppler_o2_ret = doppler_o2_ret_un./norm_o2_ret; 
 
-surf(squeeze(doppler_o2_ret(1,:,:)))
+% % Plot spectral distribution as a function of range (choose single time profile)
+% surf(squeeze(doppler_o2_ret(1,:,:)))
+% shading interp
 
 %  Checking to see if doppler_o2_ret is normalized to 1 when integrated across frequency
-for i = 1:1:i_range
-doppler_o2_ret_check(i) = trapz(doppler_o2_ret(:,i).*f_step);
-end
+doppler_o2_ret_check = trapz(doppler_o2_ret.*f_step,3);
+% imagesc(doppler_o2_ret_check)             % Should be all ones
 
 %  ---  gi from retrieval data
 %  ---  the modeled molecular backscatter
 bmo2_ret = 374280*pkpa./T_g./l_o2_on.^4;
 %  --- the aerosol backscatter coefficeint
-ba_hsrl_ret_noise = betaa(:, pro_num)';
-ba_hsrl_ret_filter = sgolayfilt(ba_hsrl_ret_noise, 3, 1*oversample+1);  %  Uses a Savitky-Golay filter%
+ba_hsrl_ret_noise = betaa;
+ba_hsrl_ret_filter = sgolayfilt(ba_hsrl_ret_noise, 3, 1*oversample+1);  %  Uses a Savitky-Golay filter
+ba_hsrl_ret_filter = ba_hsrl_ret_filter';
 
 beta_mn_o2_ret = bmo2_ret./(ba_hsrl_ret_filter+bmo2_ret);
-beta_mn_o2_m_ret = repmat(beta_mn_o2_ret, i_freq,1);
-gm_o2_ret = beta_mn_o2_m_ret.*doppler_o2_ret.*f_step;
+gm_o2_ret = beta_mn_o2_ret.*doppler_o2_ret.*f_step;
 
 beta_an_o2_ret = ba_hsrl_ret_filter./(ba_hsrl_ret_filter+bmo2_ret);
-zero_m = zeros((i_freq_middle-1), size(rm, 2));
-beta_an_o2_m_ret = [zero_m; beta_an_o2_ret; zero_m];
-ga_o2_ret = beta_an_o2_m_ret;
-
-g_o2_ret = ga_o2_ret+gm_o2_ret;
-
-%  Checking to see if g_o2_ret is normalized to 1 when integrated across frequency
-for i = 1:1:i_range
-g_o2_ret_check(i) = trapz(g_o2_ret(:,i));
+beta_an_o2_ret = repmat(beta_an_o2_ret,[1 1 i_freq]);
+zero_m = zeros(1, size(rm, 2),(i_freq_middle-1));
+for i = 1:i_time
+    ga_o2_ret(i,:,:) = cat(3,zero_m,beta_an_o2_ret(i,:,i_freq_middle),zero_m);
 end
 
+g_o2_ret = ga_o2_ret + gm_o2_ret;
+norm_g_o2_ret = trapz(g_o2_ret.*f_step,3);
+g_o2_ret = g_o2_ret./norm_g_o2_ret;
+
+%  Checking to see if g_o2_ret is normalized to 1 when integrated across frequency
+g_o2_ret_check = trapz(g_o2_ret.*f_step,3);
+% imagesc(g_o2_ret_check)               % Should be all ones
+
 % ---  dg1/dr from retrieval data
-dg_o2_ret = -1.*(g_o2_ret(:,1:size(rm, 2)-oversample)-g_o2_ret(:,1+oversample:size(rm, 2)));
+dg_o2_ret = -1.*(g_o2_ret(:,1:i_range-oversample,:)-g_o2_ret(:,1+oversample:i_range,:));
 drm = rm(1+oversample)-rm(1);
 dg_dr_o2_ret = dg_o2_ret./drm;
-dgdrlast = dg_dr_o2_ret(:,size(rm, 2)-oversample);
+dgdrlast = dg_dr_o2_ret(:,end,:);
 dgdrlast = repmat(dgdrlast, 1, oversample);
 
 % ==========================================================================
-dg_o2_ret2 = -1.*(g_o2_ret(:,1:size(rm, 2)-2*oversample)-g_o2_ret(:,1+2*oversample:size(rm, 2)));
+dg_o2_ret2 = -1.*(g_o2_ret(:,1:i_range-2*oversample,:)-g_o2_ret(:,1+2*oversample:i_range,:));
 drm2 = rm(1+2*oversample)-rm(1);
 dg_dr_o2_ret2 = dg_o2_ret2./drm2;
-dgdrlast2 = dg_dr_o2_ret2(:,size(rm, 2)-2*oversample);
+dgdrlast2 = dg_dr_o2_ret2(:,i_range-2*oversample,:);
 dgdrlast2 = repmat(dgdrlast2, 1, 2*oversample);
 dg_dr_o2_ret = [dg_dr_o2_ret2 dgdrlast2];
 % =========================================================================
@@ -778,40 +784,44 @@ c_o2_ret = exp(h.*c./kb.*(1./t0_o2-1./T_g).*E_o2);
 sT_o2_ret = a_o2_ret.*c_o2_ret./100;                 % the divide by 100 makes the units m/molecule
 
 gammaL_o2_ret = (gl0_o2*100).*(patm./p0_o2).*(t0_o2./T_g).^alpha_o2;        % times 100 makes the units 1/m
-gammaD_o2_ret = (wno2_center/c).*(2.*kb.*log(2).*T_g./mo2).^.5;               % units are 1/m
+gammaD_o2_ret = (wno2_center/c).*(2.*kb.*log(2).*T_g./mo2).^.5;             % units are 1/m
 
 j_wn_scan_o2 = size(wn_o2_scan,2);
 shift_wn_o2 = 1/(l_o2_abs_center*1e-9) - 1/(l_o2_on*1e-9);
 del_wn_o2 = wn_o2_scan - wno2_center - shift_wn_o2;
+del_wn_o2 = reshape(del_wn_o2,[1 size(del_wn_o2)]);
 
-for i=1:1:size(rm, 2)      
-    y = 0.8325546*gammaL_o2_ret(i)/gammaD_o2_ret(i);
-    for j=1:1:j_wn_scan_o2;
-        x = del_wn_o2(j)*.8325546/gammaD_o2_ret(i);
-        dt = -10:.01:10;
-        ft = exp(-dt.^2)./(y.*y+(x-dt).^2);
-        convint = trapz(dt, ft);
-        sigmaV_o2_ret(j,i) = sT_o2_ret(i)*0.12448*gammaL_o2_ret(i)/gammaD_o2_ret(i)^2*convint;      % units are m^2/molecule        
-    end
+y = 0.8325546.*gammaL_o2_ret./gammaD_o2_ret;
+x = del_wn_o2.*.8325546./gammaD_o2_ret;
+dt = -10:.01:10;
+dt_4D = reshape(dt, [1 1 size(dt)]);
+sigmaV_o2_ret = zeros(i_time,i_range,i_freq);       % Preallocate memory
+
+y = 0.8325546.*gammaL_o2_ret./gammaD_o2_ret;
+for j=1:1:j_wn_scan_o2
+    x = del_wn_o2(j).*.8325546./gammaD_o2_ret;
+    ft = exp(-dt_4D.^2)./(y.*y+(x-dt_4D).^2);
+    convint = trapz(dt,ft,4);                       % Don't use dt_4D here
+    sigmaV_o2_ret(:,:,j) = sT_o2_ret.*0.12448.*gammaL_o2_ret./gammaD_o2_ret.^2.*convint;      % units are m^2/molecule        
 end
-linecenter_sigmaV = sigmaV_o2_ret((i_freq+1)/2,:);
-linecenter_sigmaV_m = repmat(linecenter_sigmaV, i_freq, 1);
-f_ret = sigmaV_o2_ret./linecenter_sigmaV_m;
+%imagesc(wn_o2_scan,rm,squeeze(sigmaV_o2_ret(130,:,:)))     % Plot sigmaV as a function of range and wavenumber for a given time.
 
+linecenter_sigmaV = sigmaV_o2_ret(:,:,i_freq_middle);
+f_ret = sigmaV_o2_ret./linecenter_sigmaV;
 % at line center, f_ret should have a value of 1.
 
-%  --- Tmoth order
-alpha_0_ret_m = repmat(alpha_0_ret, i_freq, 1);
-alpha_0_freq_range = alpha_0_ret_m.*f_ret.*drm/oversample; 
 
-for i = 1:1:size(rm, 2)
-     for j = 1:1:i_freq
-         integrand = alpha_0_freq_range(j,1:i);
-         int = trapz(integrand);
-         stuff(1,i) = int;
-         Tmoth(j,i) = exp(-int);
-     end
+%  --- Tmoth order
+alpha_0_freq_range = alpha_0_ret.*f_ret.*drm/oversample; 
+
+for i = 1:1:i_range
+    integrand = alpha_0_freq_range(:,1:i,:);
+    int = trapz(integrand,2);
+    %stuff(1,i) = int;
+    Tmoth(:,i,:) = exp(-int);
 end
+%imagesc(wn_o2_scan,rm,squeeze(Tmoth(130,:,:)))     % Plot Tmoth as a function of range and wavenumber for a given time.
+
 
 %  ---  O2 DIAL etalon
 R_o2 = (((pi/finesse_o2/2)^2+1)^0.5-(pi/finesse_o2/2))^2;
@@ -819,9 +829,7 @@ fsr_o2_f = fsr_o2*1e-9*c/((l_o2_on*1e-9)^2);
 theta_o2 = 2.*pi.*delfghz.*1e9./fsr_o2_f;
 T_etalon_o2 = (1-R_o2).^2./(1+R_o2^2-2.*(R_o2).*cos(theta_o2));
 
-T_etalon_o2 = T_etalon_o2';
-T_etalon_o2_m = repmat(T_etalon_o2, 1, i_range);
-
+T_etalon_o2 = reshape(T_etalon_o2, [1 size(T_etalon_o2)]);  % Place frequency in 3rd dimension
 
 eta = g_o2_ret.*T_etalon_o2.*Tmoth;
 etals = eta.*(1-f_ret);
@@ -830,49 +838,45 @@ neta = dg_dr_o2_ret.*T_etalon_o2.*Tmoth;
 eta2 = g_o2_ret.*T_etalon_o2;
 neta2 = dg_dr_o2_ret.*T_etalon_o2;
 
-for i=1:1:size(rm, 2)
-    integrand1 = eta(:,i);
-    integrand2 = etals(:,i);
-    integrand3 = neta(:,i);
-    integrand4 = eta2(:,i);
-    integrand5 = neta2(:,i);
-    eta_int(i) = trapz(integrand1);
-    etals_int(i) = trapz(integrand2);
-    neta_int(i) = trapz(integrand3);
-    eta2_int(i) = trapz(integrand4);
-    neta2_int(i) =trapz(integrand5);
-end
+eta_int = trapz(eta,3);
+etals_int = trapz(etals,3);
+neta_int = trapz(neta,3);
+eta2_int = trapz(eta2,3);
+neta2_int = trapz(neta2,3);
+
 
 %  --- first order perturbation
 W1st = etals_int./eta_int;
 G1st = neta_int./eta_int - neta2_int./eta2_int;
 G1st_unshift = G1st;
 
-G1_shift_short = G1st(1,.25*oversample+1:size(rkm, 1));
-G1_end(1,1:.25*oversample) = G1st(1,size(rkm, 1));
+G1_shift_short = G1st(:,.25*oversample+1:i_range);
+G1_end(:,1:.25*oversample) = repmat(G1st(:,i_range),1,.25*oversample);
 G1st = [G1_shift_short G1_end];
 
 
 alpha_1_ret = 0.5.*(alpha_0_ret.*W1st + G1st);
 
-alpha_1_ret_filter = sgolayfilt(alpha_1_ret, 1, 1*oversample+1);
-alpha_1_ret_smooth = smooth(alpha_1_ret_filter, 1*oversample+1)';
-alpha_1_ret = alpha_1_ret_smooth;
+alpha_1_ret_filter = sgolayfilt(alpha_1_ret', 1, 1*oversample+1);   % Transpose alpha_1 so filter applies along range
+alpha_1_ret_smooth = zeros(size(alpha_1_ret_filter));   % Preallocate memory
+%  'Smooth' only works on vectors. Use forloop to loop over all times.
+for i = 1:i_time
+    alpha_1_ret_smooth(:,i) = smooth(alpha_1_ret_filter(:,i),1*oversample+1);
+end
+alpha_1_ret = alpha_1_ret_smooth';
 
 alpha_0_1_ret = alpha_0_ret + alpha_1_ret;
 
-alpha_1_ret_m = repmat(alpha_1_ret, i_freq,1);
-alpha_1_freq_range = alpha_1_ret_m.*f_ret; 
+alpha_1_freq_range = alpha_1_ret.*f_ret; 
+
 
 %  ---  Tm1st
-
-for i = 1:1:size(rm, 2)
-     for j = 1:1:i_freq
-         integrand = alpha_1_freq_range(j,1:i);
-         int = drm*trapz(integrand);
-         Tm1st(j,i) = exp(-int);
-     end
+for i = 1:1:i_range
+    integrand = alpha_1_freq_range(:,1:i,:);
+    int = drm.*trapz(integrand,2);
+    Tm1st(:,i,:) = exp(-int);
 end
+%imagesc(squeeze(Tm1st(130,:,:)))   % Plot Tm1st as a function of range and frequency for a given time.
 
 
 %  ---  2nd order 
@@ -882,25 +886,18 @@ etat2 = eta.*(1-0);
 netat2 = neta.*(1-0);
 etat1f = eta.*(1-f_ret).*(1-Tm1st);
 
-for i=1:1:size(rm, 2)
-    integrand7 = etat1(:,i);
-    integrand8 = netat1(:,i);
-    integrand9 = etat1f(:,i);
-    integrand10 = etat2(:,i);
-    integrand11 = netat2(:,i);
-    etat1_int(i) = trapz(integrand7);
-    netat1_int(i) = trapz(integrand8);
-    etat1f_int(i) = trapz(integrand9);
-    etat2_int(i) = trapz(integrand10);
-    netat2_int(i) = trapz(integrand11);
-end
+etat1_int = trapz(etat1,3);
+netat1_int = trapz(netat1,3);
+etat1f_int = trapz(etat1f,3);
+etat2_int = trapz(etat2,3);
+netat2_int = trapz(netat2,3);
 
 G2nd = (neta_int.*etat1_int./eta_int./eta_int - netat1_int./eta_int) - (neta_int.*etat2_int./eta_int./eta_int - netat2_int./eta_int);
 
 G2nd_unshift = G2nd;
 
-G2_shift_short = G2nd(1,.25*oversample+1:size(rkm, 1));
-G2_end(1,1:.25*oversample) = G2nd(1,size(rkm, 1));%
+G2_shift_short = G2nd(:,.25*oversample+1:i_range);
+G2_end(:,1:.25*oversample) = repmat(G2nd(:,i_range),1,.25*oversample);
 G2nd = [G2_shift_short G2_end];
 
 
@@ -908,39 +905,54 @@ W2nd = etals_int.*etat1f_int./eta_int./eta_int - etat1f_int./eta_int;
 
 alpha_2_ret = 0.5.*(alpha_1_ret.*W1st + alpha_0_ret.*W2nd + G2nd);
 
-alpha_2_ret_filter = sgolayfilt(alpha_2_ret, 1, 1*oversample++1);
-alpha_2_ret_smooth = smooth(alpha_2_ret_filter, 1*oversample+1)';
-alpha_2_ret = alpha_2_ret_smooth;
+alpha_2_ret_filter = sgolayfilt(alpha_2_ret', 1, 1*oversample+1);
+alpha_2_ret_smooth = zeros(size(alpha_2_ret_filter));   % Preallocate memory
+%  'Smooth' only works on vectors. Use forloop to loop over all times.
+for i = 1:i_time
+    alpha_2_ret_smooth(:,i) = smooth(alpha_2_ret_filter(:,i),1*oversample+1);
+end
+alpha_2_ret = alpha_2_ret_smooth';
 
 alpha_o2_ret = alpha_0_ret + alpha_1_ret + alpha_2_ret;
-alpha_o2_total_filter = sgolayfilt(alpha_o2_ret, 1, 1*oversample++1);
-alpha_o2_ret = alpha_o2_total_filter;
+alpha_o2_total_filter = sgolayfilt(alpha_o2_ret', 1, 1*oversample+1);
+alpha_o2_ret = alpha_o2_total_filter';
+
 
 %  ========================================================================
 %  ================  Temperature Retrieval  ===============================
 %  ========================================================================
-loop = 20;                  % number of interations ror the temerpature retrieval 
+loop = 20;                  % number of interations for the temerpature retrieval 
 
-T_ret(1,:) = T_g;
+P_surf_tp = P_surf';           % Transpose so time is in 1st dimension
+T_surf_tp = T_surf';           % Transpose to put time in 1st dimension
+T_ret = T_g;
 tg = T_g;
 
+T_ret = zeros(size(T_g,1),size(T_g,2),loop);    % Preallocate memory
+lapserate = zeros(i_time,loop);                 % Preallocate memory
 for lp = 2:1:loop+1
     % using a linear fit to the temperature profile to get a surface
-    %  temeprature and lapse rate.  THis is useful in the second - fourth
+    %  temperature and lapse rate.  This is useful in the second - fourth
     %  iteration.
-    tgfit = tg(1,1:size(rm,2)-90);  %removes the furthest range bins befiorw fitting 
-    rmfit = rm(1,1:size(rm,2)-90);
-    fitdata = fitlm(rmfit, tgfit);
-    fittable = fitdata.Coefficients;
-    fitgamma1 = fittable{'x1', 'Estimate'};
-    fitintercept1 = fittable{'(Intercept)', 'Estimate'};
+    tgfit = tg(:,1:i_range-90);  % removes the furthest range bins before fitting 
+    rmfit = rm(1:i_range-90);
     
-    lapserate(lp-1) = fitgamma1;
-
+    for i = 1:i_time
+        fitdata = fitlm(rmfit, tgfit(i,:));
+        fittable = fitdata.Coefficients;
+        fitgamma1(i) = fittable{'x1', 'Estimate'};
+        fitintercept1(i) = fittable{'(Intercept)', 'Estimate'};
+    end
+    
+    lapserate(:,lp-1) = fitgamma1;
+    
+    fitgamma1_tp = fitgamma1';              % Transpose so time is in 1st dimension
+    fitintercept1_tp = fitintercept1';      % Transpose so time is in 1st dimension
+    
     %  =======================  Pressure profile  =============================
-    patm_g = psatm*(fitintercept1./(tg)).^(.0341626./fitgamma1);
-    pg = patm_g(1,1)*101.325*1000;        %  Surface pressure in pascals
-    pkpa_g = 101.325*patm_g;            %  Pressure profile in kPa 
+    patm_g = P_surf_tp.*(fitintercept1_tp./(tg)).^(.0341626./fitgamma1_tp);
+    pg = patm_g(:,1).*101.325.*1000;    %  Surface pressure in pascals
+    pkpa_g = 101.325.*patm_g;           %  Pressure profile in kPa 
     
     %  Find the new q term 
     Nair = No.*273.15.*patm_g./tg;    
@@ -951,44 +963,52 @@ for lp = 2:1:loop+1
     gammaD_o2_ret = (wno2_center/c).*(2.*kb.*log(2).*tg./mo2).^.5;               % units are 1/m
     
     %  updating the lineshape function
-    for i=1:1:size(rm, 2)       
-       y = 0.8325546*gammaL_o2_ret(i)/gammaD_o2_ret(i);
-       x = del_wn_o2(middle)*.8325546/gammaD_o2_ret(i);
-       dt = -10:.01:10;
-       ft = exp(-dt.^2)./(y.*y+(x-dt).^2);
-       convint = trapz(dt, ft);
-       f_o2_tg(i) = 0.12448*gammaL_o2_ret(i)/gammaD_o2_ret(i)^2*convint;      % units are m^2/molecule
-    end
+    y = 0.8325546.*gammaL_o2_ret./gammaD_o2_ret;
+    x = del_wn_o2(middle)*.8325546./gammaD_o2_ret;
+    dt = -10:.01:10;
+    dt_3D = reshape(dt, [1 size(dt)]);
+    ft = exp(-dt_3D.^2)./(y.*y+(x-dt_3D).^2);
+    convint = trapz(dt,ft,3);
+    f_o2_tg = 0.12448.*gammaL_o2_ret./gammaD_o2_ret.^2.*convint;      % units are m^2/molecule
     
     %  calculating Delta T
     ep = E_o2*100*h*c;          % times 100 puts the units of E_o2 from 1/cm to 1/m
-    exp1 = .03416262/fitgamma1;
-    c1 = s0_o2/100*t0_o2*exp(ep/kb/t0_o2)*pg/kb/tsk^-exp1;
+    exp1 = .03416262./fitgamma1_tp;
+    c1 = s0_o2/100*t0_o2*exp(ep/kb/t0_o2).*pg./kb./T_surf_tp.^-exp1;
     c2 = tg.^(-exp1-2).*exp(-ep./kb./tg);
     c3 = (-exp1-2)./tg + ep./kb./tg./tg;
-
+    
     deltaT = (alpha_o2_ret - c1.*q.*f_o2_tg.*c2)./(c1.*q.*f_o2_tg.*c2.*c3);
-    deltaT_filter = sgolayfilt(deltaT, 1, 1*oversample+1);
-    deltaT_smooth = smooth(deltaT_filter, 1*oversample+1)';
+    deltaT_filter = sgolayfilt(deltaT', 1, 1*oversample+1);
+    deltaT_smooth = zeros(size(deltaT_filter));     % Preallocate memory
+    for i = 1:i_time
+        deltaT_smooth(:,i) = smooth(deltaT_filter(:,i),1*oversample+1);
+    end
+    deltaT_smooth = deltaT_smooth';
 
     
     %  ------- limit deltaT to plus or minus 5K  --------------------------
-    for j = 1:1:size(rm, 2);
-        if deltaT_smooth(1,j) > 5
-            deltaT_smooth(1,j) = 5;
-        end
-        if deltaT_smooth(1,j) < -5
-            deltaT_smooth(1,j) = -5;
-        end
-    end
+    deltaT_smooth(deltaT_smooth > 5) = 5;
+    deltaT_smooth(deltaT_smooth < -5) = -5;
+
     
-    changeT(lp-1,:) = deltaT_smooth;
-    new_T = tg+deltaT_smooth;
-    T_ret(lp,:) = new_T;
+    changeT(:,:,lp-1) = deltaT_smooth;
+    new_T = tg + deltaT_smooth;
+    T_ret(:,:,lp) = new_T;
     tg = new_T;
 end 
 
-T_ret_final = T_ret(loop, :);
-T_ret_final_filter = sgolayfilt(T_ret_final, 1, 1*oversample+1);
-T_ret_final_smooth = smooth(T_ret_final_filter, 1*oversample+1)';
-T_ret_final = T_ret_final_smooth;
+T_ret_final = T_ret(:,:,loop);
+T_ret_final_filter = sgolayfilt(T_ret_final', 1, 1*oversample+1);
+T_ret_final_smooth = zeros(size(T_ret_final_filter));   % Preallocate memory
+for i = 1:i_time
+    T_ret_final_smooth(:,i) = smooth(T_ret_final_filter(:,i),1*oversample+1);
+end
+T_ret_final = T_ret_final_smooth';
+
+figure
+imagesc(thr,rkm,T_ret_final')
+set(gca,'Ydir','Normal')
+
+figure
+plot(T_ret_final(50,:),rkm)

@@ -597,7 +597,7 @@ rangebin = movavg_r;
 % =========================================================================
 % =========================================================================
 %  input parameters for the second portion of the program
-pro_num = 166;              % index for the profile
+pro_num = 130;              % index for the profile
 
 c = 3.00e8;                 % speed of light in m/s
 kb = 1.38065e-23;           % Boltzman's constant in J/K
@@ -772,7 +772,7 @@ del_wn_o2 = wn_o2_scan - wno2_center - shift_wn_o2;
 
 for i=1:1:size(rm, 2)      
     y = 0.8325546*gammaL_o2_ret(i)/gammaD_o2_ret(i);
-    for j=1:1:j_wn_scan_o2;
+    for j=1:1:j_wn_scan_o2
         x = del_wn_o2(j)*.8325546/gammaD_o2_ret(i);
         dt = -10:.01:10;
         ft = exp(-dt.^2)./(y.*y+(x-dt).^2);
