@@ -1032,7 +1032,7 @@ title(colorbar,'Temperature (K)')
 
 range_plot_max = 2.98;     % Max range to plot [km]
 [~,range_bin_plot_max] = min(abs(rkm_cat - range_plot_max));
-time_slice = 8;         % Time slice to plot [hrs]
+time_slice = 6;         % Time slice to plot [hrs]
 [~,time_bin] = min(abs(thr - time_slice));
 
     T_cat_fit = T_cat(:,start_bin:range_bin_plot_max);  % removes the furthest range bins before fitting 
@@ -1052,7 +1052,7 @@ T_g_lr = T_surf(time_bin) + lapserate(time_bin).*rkm;
 plot(T_cat(time_bin,1:range_bin_plot_max),rkm_cat(1:range_bin_plot_max))
 hold on
 plot(T_g_lr(1:range_bin_plot_max+start_bin-2),rkm(1:range_bin_plot_max+start_bin-2))
-title('Temperature Oct 29, 2018 10:00 UTC')
+title('Temperature Oct 29, 2018 02:00 UTC')
 xlabel('Temperature (K)')
 ylabel('Range (km)')
 
