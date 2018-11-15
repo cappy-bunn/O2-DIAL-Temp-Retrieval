@@ -625,11 +625,11 @@ mo2 = 5.314e-26;            % mass o2 molecule in kg
 l_o2_on = 769.795;          % on line wavelength in nm
 l_o2_off = 769.695;         % off line wavelength 
 l_o2_abs_center = 769.795;  % absortption line center in nm
-s0_o2 = .4889e-25;          % linestregth in cm/molecule
+s0_o2 = .4889e-25*1.15;          % linestregth in cm/molecule
 t0_o2 = 293.15;             % reference temperature in K
 p0_o2 = 1;                  % reference pressure in atm
 E_o2 = 1420.7631;           % ground state energy in 1/cm
-gl0_o2 = 0.0624;            % halfwidth in 1/cm (gl0_o2*c = 1.085 GHz)
+gl0_o2 = 0.0312*2;            % halfwidth in 1/cm (gl0_o2*c = 1.085 GHz)
 alpha_o2 = 0.63;
 
 finesse_o2 = 2;
@@ -1016,10 +1016,44 @@ set(gca,'Ydir','Normal')
 figure
 plot(T_ret_final(130,:),rkm)
 
-% % Concatenate surface temp with range bins 22 thru 160
-% figure
-% rkm_cat = [rkm(1); rkm(22:end)];
-% T_cat = [T_surf' T_ret_final(:,22:end)];
-% imagesc(T_cat')
-% set(gca,'Ydir','Normal')
-% caxis([240 290])
+% Concatenate surface temp with range bins 'start_bin' thru 'end'
+figure
+start_range = 750;      % Range [m] to concatenate to the surface temp
+start_bin = round(start_range/37.5);
+rkm_cat = [rkm(1); rkm(start_bin:end)];
+T_cat = [T_surf' T_ret_final(:,start_bin:end)];
+imagesc(thr,rkm_cat,T_cat')
+set(gca,'Ydir','Normal')
+caxis([240 290])
+title('Temperature Oct 29, 2018')
+xlabel('Time (UTC)')
+ylabel('Range (km)')
+title(colorbar,'Temperature (K)')
+
+range_plot_max = 2.98;     % Max range to plot [km]
+[~,range_bin_plot_max] = min(abs(rkm_cat - range_plot_max));
+time_slice = 7;         % Time slice to plot [hrs]
+[~,time_bin] = min(abs(thr - time_slice));
+
+    T_cat_fit = T_cat(:,start_bin:range_bin_plot_max);  % removes the furthest range bins before fitting 
+    rkm_cat_fit = rkm_cat(start_bin:range_bin_plot_max);
+    
+    for i = 1:i_time
+        fitdata = fitlm(rkm_cat_fit, T_cat_fit(i,:));
+        fittable = fitdata.Coefficients;
+        fitgamma1(i) = fittable{'x1', 'Estimate'};
+        fitintercept1(i) = fittable{'(Intercept)', 'Estimate'};
+    end
+    
+    lapserate = fitgamma1;
+
+figure
+T_g_lr = T_surf(time_bin) + lapserate(time_bin).*rkm;
+plot(T_cat(time_bin,1:range_bin_plot_max),rkm_cat(1:range_bin_plot_max))
+hold on
+plot(T_g_lr(1:range_bin_plot_max+start_bin-2),rkm(1:range_bin_plot_max+start_bin-2))
+title('Temperature Oct 29, 2018 07:00 UTC')
+xlabel('Temperature (K)')
+ylabel('Range (km)')
+
+
