@@ -1,1 +1,0 @@
-h = hdftool('O2_HITRAN_test.hdf');
