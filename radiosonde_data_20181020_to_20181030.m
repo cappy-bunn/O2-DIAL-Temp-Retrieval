@@ -40,7 +40,8 @@ for i =0:numvars-1
     var_data{i+1} = data;
         
 end
-    
+
+% Time/Date
 time_name = 'synTime';
 time_index = find(strcmp(var_names,time_name));
 time_data = var_data{time_index};
@@ -48,27 +49,35 @@ time_dims = var_dims{time_index};
 
 time_data = datetime(time_data,'convertfrom','posixtime');  % Convert from unix time to normal time/date
 
-pressure_name = 'prMan';
-pressure_index = find(strcmp(var_names,pressure_name));
-pressure_data = var_data{pressure_index};
-pressure_dims = var_dims{pressure_index};
-
-pressure_data(pressure_data == max(max(pressure_data))) = NaN;
-
+% Height [m]
 height_name = 'htMan';
 height_index = find(strcmp(var_names,height_name));
 height_data = var_data{height_index};
 height_dims = var_dims{height_index};
 
 height_data(height_data == max(max(height_data))) = NaN;
-height_data(1,:) = 0;   % Change first row from Denver elevation to 0 (surface)
+height_data(1,:) = 0;   % Change first row from station elevation to 0 (surface)
 
-temp_name = 'tpSigT';
-temp_index = find(strcmp(var_names,temp_name));
-temp_data = var_data{temp_index};
-temp_dims = var_dims{temp_index};
+% Mandatory levels
+tempMan_name = 'tpMan';
+tempMan_index = find(strcmp(var_names,tempMan_name));
+tempMan_data = var_data{tempMan_index};
+tempMan_dims = var_dims{tempMan_index};
 
-temp_data(temp_data == max(max(temp_data))) = NaN;
-temp_data(temp_data == max(max(temp_data))) = NaN;
+tempMan_data(tempMan_data == max(max(tempMan_data))) = NaN;
+tempMan_data(tempMan_data == max(max(tempMan_data))) = NaN;
 
-%plot(temp_data(1:5,12),height_data(1:5,12))
+% Significant levels wrt Temperature
+tempST_name = 'tpSigT';
+tempST_index = find(strcmp(var_names,tempST_name));
+tempST_data = var_data{tempST_index};
+tempST_dims = var_dims{tempST_index};
+
+tempST_data(tempST_data == max(max(tempST_data))) = NaN;
+
+plot(tempMan_data(1:5,12),height_data(1:5,12))
+
+tempST_name = 'sigTLevel';
+tempST_index = find(strcmp(dim_names,tempST_name));
+tempST_data = var_data{tempST_index};
+tempST_dims = var_dims{tempST_index};
