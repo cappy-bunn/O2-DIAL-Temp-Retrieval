@@ -40,17 +40,13 @@ for i =0:numvars-1
     var_data{i+1} = data;
         
 end
-
-    T_surf_name = 'Surface_Temperature_HSRL';
-    T_surf_index = find(strcmp(var_names,T_surf_name));
-    T_surf_data = var_data{T_surf_index};
-    T_surf_dims = var_dims{T_surf_index};
-    T_surf = double(T_surf_data);  
     
 time_name = 'synTime';
 time_index = find(strcmp(var_names,time_name));
 time_data = var_data{time_index};
 time_dims = var_dims{time_index};
+
+time_data = datetime(time_data,'convertfrom','posixtime');  % Convert from unix time to normal time/date
 
 pressure_name = 'prMan';
 pressure_index = find(strcmp(var_names,pressure_name));
@@ -65,3 +61,14 @@ height_data = var_data{height_index};
 height_dims = var_dims{height_index};
 
 height_data(height_data == max(max(height_data))) = NaN;
+height_data(1,:) = 0;   % Change first row from Denver elevation to 0 (surface)
+
+temp_name = 'tpSigT';
+temp_index = find(strcmp(var_names,temp_name));
+temp_data = var_data{temp_index};
+temp_dims = var_dims{temp_index};
+
+temp_data(temp_data == max(max(temp_data))) = NaN;
+temp_data(temp_data == max(max(temp_data))) = NaN;
+
+%plot(temp_data(1:5,12),height_data(1:5,12))
