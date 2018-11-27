@@ -8,11 +8,11 @@ clear;
 %% ========================================================================
 % Input parameters for the netcdf file retrieval
 % =========================================================================
-filename = 'wv_dial05.181029.Python.nc';
+filename = 'wv_dial05.181121.Python.nc';
 r_max = 6000;           % Maximum range [m]
 movavg_r = 300;         % Set range to average over [m] should be a multiple of 37.5 m
 movavg_t = 20;          % Set time to average over [mins] should be a multiple of 5 minutes
-nighttime = 1;          % 1 = YES, only look at nighttime; 0 = NO, look at full day
+nighttime = 0;          % 1 = YES, only look at nighttime; 0 = NO, look at full day
 dim_offset = 1;         % Set offset in 'dim_names'
 
 % ========================================================================
@@ -592,7 +592,7 @@ br = br(ind_r_BR,:);                            % Backscatter Ratio
 rm = r_o2on;
 rkm = rm./1000;
 rangebin = movavg_r;
-tsec = t_o2on;
+tsec = t_o2on(1:size(T,2));
 thr = tsec./3600; 
 %% ========================================================================
 %  The following part of the program completes the temperature inversion

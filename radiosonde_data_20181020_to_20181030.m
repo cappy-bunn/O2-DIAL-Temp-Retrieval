@@ -1,7 +1,15 @@
-filename = 'raob_soundings24581.cdf';
+oid = 'raob_soundings24581.cdf';
+
+f = ncinfo(oid);
+nvars = length(f.Variables);
+for k = 1:nvars
+   varname=f.Variables(k).Name;
+   disp(['Reading:  ' varname]);
+   eval([varname ' = ncread(''' oid ''',''' varname ''');']);
+end
 
 % Open netcdf file
-ncid = netcdf.open(filename);
+ncid = netcdf.open(oid);
 
 % Read the number of dimensions and number of variables in the file
 [numdims, numvars, numglobalatts, unlimdimID] = netcdf.inq(ncid);
